@@ -24,6 +24,11 @@ class AgentState(MessagesState, total=False):
     user_id: str | None
     tenant_id: str | None
 
+    # Query reformulation
+    # Original user query is preserved.
+    # This field is used only for improved retrieval.
+    rewritten_query: str | None
+
     # ---------------------------------------------------------
     # Agent decision
     # ---------------------------------------------------------
