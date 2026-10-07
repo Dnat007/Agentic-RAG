@@ -1,7 +1,39 @@
 from langchain_core.documents import Document
 
-from app.agent.graph import agent_graph
+import app.agent.graph as graph_module
+from app.agent.graph import (
+    agent_graph,
+    configure_agent_graph,
+)
 from app.agent.state import AgentState
+
+
+class FakePlanner:
+    def plan(self, state):
+        return {
+            **state,
+            "intent": "document",
+            "next_action": "rag",
+            "plan": ["retrieve relevant documents"],
+        }
+
+
+class FakeGenerator:
+    def generate(self, state):
+        return {
+            **state,
+            "answer": "Employees are eligible for annual leave according to company policy.",
+            "answer_verified": False,
+            "finished": False,
+        }
+
+
+def create_planner():
+    return FakePlanner()
+
+
+def create_generator():
+    return FakeGenerator()
 
 
 def test_agent_graph_rag_route():
@@ -31,6 +63,16 @@ def test_agent_graph_rag_route():
             },
         ),
     ]
+
+    # Build RAG index
+    graph_module.rag_tool.build(documents)
+
+    # Inject fake planner and generator
+    configure_agent_graph(
+        planner_factory=create_planner,
+        generator_factory=create_generator,
+        rag_tool_factory=lambda: graph_module.rag_tool,
+    )
 
     state: AgentState = {
         "messages": [],
@@ -71,15 +113,26 @@ def test_agent_graph_rag_route():
         "error": None,
     }
 
-    # NOTE:
-    # The current graph's rag_node is not yet wired to accept
-    # an externally supplied document list.
-    #
-    # Therefore this test currently validates the graph route/state
-    # rather than rebuilding the old global rag_tool architecture.
-
     result = agent_graph.invoke(state)
 
+    # Agent execution
     assert result["agent_iterations"] >= 1
-    assert result["retrieval_attempts"] >= 1
-    assert "rag" in result["tools_used"]
+
+    # Retrieval
+    assert result["retrieval_attempts"] == 1
+    assert len(result["retrieved_documents"]) > 0
+    assert len(result["retrieval_scores"]) > 0
+    assert len(result["context"]) > 0
+
+    # Context evaluation
+    assert result["context_relevant"] is True
+
+    assert isinstance(
+        result["context_evaluation"],
+        dict,
+    )
+
+    assert result["context_evaluation"]["is_relevant"] is True
+
+    # Generation
+    assert result["answer"] != ""

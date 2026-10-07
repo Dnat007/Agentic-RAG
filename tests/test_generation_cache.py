@@ -1,3 +1,5 @@
+from langchain_core.documents import Document
+
 from app.agent.generator import AnswerGenerator
 from app.agent.graph import (
     agent_graph,
@@ -6,6 +8,7 @@ from app.agent.graph import (
 from app.cache.key_builder import CacheKeyBuilder
 from app.cache.manager import CacheManager
 from app.cache.memory import InMemoryCacheBackend
+from app.tools.rag import RAGTool
 
 
 class FakeMessage:
@@ -123,6 +126,35 @@ def create_generator(
     )
 
 
+def create_rag_tool() -> RAGTool:
+    rag_tool = RAGTool()
+
+    documents = [
+        Document(
+            page_content=(
+                "RAG combines retrieval with generation. "
+                "A retrieval augmented generation system "
+                "retrieves relevant documents and uses them "
+                "as context for generating an answer."
+            ),
+            metadata={
+                "document_id": "doc-1",
+                "document_name": "rag.txt",
+                "source": "test",
+                "user_id": "user-1",
+                "tenant_id": "tenant-1",
+                "department": "engineering",
+            },
+        )
+    ]
+
+    rag_tool.build(
+        documents
+    )
+
+    return rag_tool
+
+
 def create_state():
     return {
         "messages": [],
@@ -215,12 +247,15 @@ def test_graph_generates_and_caches_answer():
         "RAG combines retrieval and generation."
     )
 
+    rag_tool = create_rag_tool()
+
     configure_agent_graph(
         cache_manager=manager,
         planner_factory=lambda: planner,
         generator_factory=lambda: create_generator(
             client
         ),
+        rag_tool_factory=lambda: rag_tool,
     )
 
     result = agent_graph.invoke(
@@ -260,12 +295,15 @@ def test_second_request_uses_cache_and_skips_generation():
         "RAG combines retrieval and generation."
     )
 
+    rag_tool = create_rag_tool()
+
     configure_agent_graph(
         cache_manager=manager,
         planner_factory=lambda: planner,
         generator_factory=lambda: create_generator(
             client
         ),
+        rag_tool_factory=lambda: rag_tool,
     )
 
     first_result = agent_graph.invoke(
@@ -301,12 +339,15 @@ def test_cache_failure_does_not_remove_generated_answer():
         "Generated answer despite cache failure."
     )
 
+    rag_tool = create_rag_tool()
+
     configure_agent_graph(
         cache_manager=manager,
         planner_factory=lambda: planner,
         generator_factory=lambda: create_generator(
             client
         ),
+        rag_tool_factory=lambda: rag_tool,
     )
 
     result = agent_graph.invoke(
